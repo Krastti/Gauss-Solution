@@ -29,6 +29,12 @@ static void close_file(FILE** file) {
     }
 }
 
+static void close_reports(FILE** single, FILE** multi, FILE** hilbert) {
+    close_file(single);
+    close_file(multi);
+    close_file(hilbert);
+}
+
 static void ensure_report_file(const char* path) {
     FILE* file = fopen(path, "a");
     if (!file) {
@@ -56,19 +62,57 @@ static void fill_ones(size_t n, double* x) {
         x[i] = 1.0;
 }
 
-static void write_timing_row(FILE* out, size_t n, const char* method, int status, double total_ms, double decompose_ms, double solve_ms, const double* A, const double* b, const double* x) {
+static void write_timing_row(FILE* out, size_t n, const char* method, int status,
+                             double total_ms, double decompose_ms, double solve_ms,
+                             const double* A, const double* b, const double* x) {
     const double residual = status == ALGEBRA_OK ? gauss_residual(n, A, b, x) : -1.0;
 
     fprintf(out, "%zu,%s,%d,%.6f,%.6f,%.6f,%.12e\n",
             n, method, status, total_ms, decompose_ms, solve_ms, residual);
 }
 
-static void write_accuracy_row(FILE* out, size_t n, const char* method, int status, const double* A, const double* b, const double* x, const double* exact) {
+static void write_accuracy_row(FILE* out, size_t n, const char* method, int status,
+                               const double* A, const double* b,
+                               const double* x, const double* exact) {
     const double relative_error = status == ALGEBRA_OK ? matgen_relative_error(n, x, exact) : -1.0;
     const double residual = status == ALGEBRA_OK ? gauss_residual(n, A, b, x) : -1.0;
 
     fprintf(out, "%zu,%s,%d,%.12e,%.12e\n",
             n, method, status, relative_error, residual);
+}
+
+static void write_gauss_solution(FILE* out, size_t n, const char* method_name,
+                                 int method, const double* A,
+                                 const double* b, double* x) {
+    double elapsed = 0.0;
+    const int status = gauss_solve(n, A, b, x, method, &elapsed);
+
+    write_timing_row(out, n, method_name, status, elapsed, 0.0, elapsed, A, b, x);
+}
+
+static void write_lu_solution(FILE* out, size_t n, const double* A,
+                              const double* b, double* x) {
+    double decompose_ms = 0.0;
+    double solve_ms = 0.0;
+    double total_ms = 0.0;
+    const int status = lu_decompose_solve(n, A, b, x, &decompose_ms, &solve_ms, &total_ms);
+
+    write_timing_row(out, n, "lu", status, total_ms, decompose_ms, solve_ms, A, b, x);
+}
+
+static void write_gauss_accuracy(FILE* out, size_t n, const char* method_name,
+                                 int method, const double* A, const double* b,
+                                 double* x, const double* exact) {
+    const int status = gauss_solve(n, A, b, x, method, NULL);
+
+    write_accuracy_row(out, n, method_name, status, A, b, x, exact);
+}
+
+static void write_lu_accuracy(FILE* out, size_t n, const double* A,
+                              const double* b, double* x, const double* exact) {
+    const int status = lu_decompose_solve(n, A, b, x, NULL, NULL, NULL);
+
+    write_accuracy_row(out, n, "lu", status, A, b, x, exact);
 }
 
 static void write_single_system_experiment(FILE* out) {
@@ -93,18 +137,9 @@ static void write_single_system_experiment(FILE* out) {
             continue;
         }
 
-        double elapsed = 0.0;
-        int gs = gauss_solve(n, A, b, x, GAUSS_METHOD_CLASSIC, &elapsed);
-        write_timing_row(out, n, "gauss_classic", gs, elapsed, 0.0, elapsed, A, b, x);
-
-        gs = gauss_solve(n, A, b, x, GAUSS_METHOD_PIVOT, &elapsed);
-        write_timing_row(out, n, "gauss_pivot", gs, elapsed, 0.0, elapsed, A, b, x);
-
-        double decompose_ms = 0.0;
-        double solve_ms = 0.0;
-        double total_ms = 0.0;
-        int ls = lu_decompose_solve(n, A, b, x, &decompose_ms, &solve_ms, &total_ms);
-        write_timing_row(out, n, "lu", ls, total_ms, decompose_ms, solve_ms, A, b, x);
+        write_gauss_solution(out, n, "gauss_classic", GAUSS_METHOD_CLASSIC, A, b, x);
+        write_gauss_solution(out, n, "gauss_pivot", GAUSS_METHOD_PIVOT, A, b, x);
+        write_lu_solution(out, n, A, b, x);
 
         gauss_free_matrix(A);
         free(b);
@@ -219,14 +254,9 @@ static void write_hilbert_experiment(FILE* out) {
             continue;
         }
 
-        int gs = gauss_solve(n, H, b, x, GAUSS_METHOD_CLASSIC, NULL);
-        write_accuracy_row(out, n, "gauss_classic", gs, H, b, x, exact);
-
-        gs = gauss_solve(n, H, b, x, GAUSS_METHOD_PIVOT, NULL);
-        write_accuracy_row(out, n, "gauss_pivot", gs, H, b, x, exact);
-
-        int ls = lu_decompose_solve(n, H, b, x, NULL, NULL, NULL);
-        write_accuracy_row(out, n, "lu", ls, H, b, x, exact);
+        write_gauss_accuracy(out, n, "gauss_classic", GAUSS_METHOD_CLASSIC, H, b, x, exact);
+        write_gauss_accuracy(out, n, "gauss_pivot", GAUSS_METHOD_PIVOT, H, b, x, exact);
+        write_lu_accuracy(out, n, H, b, x, exact);
 
         gauss_free_matrix(H);
         free(exact);
@@ -251,9 +281,7 @@ int main(void) {
 
     if (!single || !multi || !hilbert) {
         LOG_ERROR("%s", "Не удалось открыть файлы отчётов в data/reports!");
-        close_file(&single);
-        close_file(&multi);
-        close_file(&hilbert);
+        close_reports(&single, &multi, &hilbert);
         return 1;
     }
 
@@ -261,9 +289,7 @@ int main(void) {
     write_multiple_rhs_experiment(multi);
     write_hilbert_experiment(hilbert);
 
-    close_file(&single);
-    close_file(&multi);
-    close_file(&hilbert);
+    close_reports(&single, &multi, &hilbert);
 
     LOG_INFO("%s", "main: все отчёты успешно записаны");
     printf("Эксперименты завершены. CSV-файлы сохранены в data/reports.\n");

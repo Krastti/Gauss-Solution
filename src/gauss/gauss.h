@@ -11,7 +11,9 @@
 #define GAUSS_METHOD_CLASSIC 0
 #define GAUSS_METHOD_PIVOT   1
 
-#define GAUSS_EPS 1e-12
+/* Hilbert matrices used in the lab can produce pivots below 1e-12 while still
+   being nonzero in double precision. */
+#define GAUSS_EPS 1e-16
 
 double* gauss_alloc_matrix(size_t n);
 
