@@ -62,18 +62,14 @@ static void fill_ones(size_t n, double* x) {
         x[i] = 1.0;
 }
 
-static void write_timing_row(FILE* out, size_t n, const char* method, int status,
-                             double total_ms, double decompose_ms, double solve_ms,
-                             const double* A, const double* b, const double* x) {
+static void write_timing_row(FILE* out, size_t n, const char* method, int status, double total_ms, double decompose_ms, double solve_ms, const double* A, const double* b, const double* x) {
     const double residual = status == ALGEBRA_OK ? gauss_residual(n, A, b, x) : -1.0;
 
     fprintf(out, "%zu,%s,%d,%.6f,%.6f,%.6f,%.12e\n",
             n, method, status, total_ms, decompose_ms, solve_ms, residual);
 }
 
-static void write_accuracy_row(FILE* out, size_t n, const char* method, int status,
-                               const double* A, const double* b,
-                               const double* x, const double* exact) {
+static void write_accuracy_row(FILE* out, size_t n, const char* method, int status, const double* A, const double* b, const double* x, const double* exact) {
     const double relative_error = status == ALGEBRA_OK ? matgen_relative_error(n, x, exact) : -1.0;
     const double residual = status == ALGEBRA_OK ? gauss_residual(n, A, b, x) : -1.0;
 
@@ -81,17 +77,14 @@ static void write_accuracy_row(FILE* out, size_t n, const char* method, int stat
             n, method, status, relative_error, residual);
 }
 
-static void write_gauss_solution(FILE* out, size_t n, const char* method_name,
-                                 int method, const double* A,
-                                 const double* b, double* x) {
+static void write_gauss_solution(FILE* out, size_t n, const char* method_name, int method, const double* A, const double* b, double* x) {
     double elapsed = 0.0;
     const int status = gauss_solve(n, A, b, x, method, &elapsed);
 
     write_timing_row(out, n, method_name, status, elapsed, 0.0, elapsed, A, b, x);
 }
 
-static void write_lu_solution(FILE* out, size_t n, const double* A,
-                              const double* b, double* x) {
+static void write_lu_solution(FILE* out, size_t n, const double* A, const double* b, double* x) {
     double decompose_ms = 0.0;
     double solve_ms = 0.0;
     double total_ms = 0.0;
@@ -100,16 +93,13 @@ static void write_lu_solution(FILE* out, size_t n, const double* A,
     write_timing_row(out, n, "lu", status, total_ms, decompose_ms, solve_ms, A, b, x);
 }
 
-static void write_gauss_accuracy(FILE* out, size_t n, const char* method_name,
-                                 int method, const double* A, const double* b,
-                                 double* x, const double* exact) {
+static void write_gauss_accuracy(FILE* out, size_t n, const char* method_name, int method, const double* A, const double* b, double* x, const double* exact) {
     const int status = gauss_solve(n, A, b, x, method, NULL);
 
     write_accuracy_row(out, n, method_name, status, A, b, x, exact);
 }
 
-static void write_lu_accuracy(FILE* out, size_t n, const double* A,
-                              const double* b, double* x, const double* exact) {
+static void write_lu_accuracy(FILE* out, size_t n, const double* A, const double* b, double* x, const double* exact) {
     const int status = lu_decompose_solve(n, A, b, x, NULL, NULL, NULL);
 
     write_accuracy_row(out, n, "lu", status, A, b, x, exact);
