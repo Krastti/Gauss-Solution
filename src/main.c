@@ -20,6 +20,15 @@
 #define REPORT_MULTI_PATH REPORTS_DIR "/multiple_rhs_experiment.csv"
 #define REPORT_HILBERT_PATH REPORTS_DIR "/hilbert_accuracy_experiment.csv"
 
+#define ARRAY_COUNT(array) (sizeof(array) / sizeof((array)[0]))
+
+static void close_file(FILE** file) {
+    if (*file) {
+        fclose(*file);
+        *file = NULL;
+    }
+}
+
 static void ensure_report_file(const char* path) {
     FILE* file = fopen(path, "a");
     if (!file) {
@@ -47,14 +56,28 @@ static void fill_ones(size_t n, double* x) {
         x[i] = 1.0;
 }
 
+static void write_timing_row(FILE* out, size_t n, const char* method, int status, double total_ms, double decompose_ms, double solve_ms, const double* A, const double* b, const double* x) {
+    const double residual = status == ALGEBRA_OK ? gauss_residual(n, A, b, x) : -1.0;
+
+    fprintf(out, "%zu,%s,%d,%.6f,%.6f,%.6f,%.12e\n",
+            n, method, status, total_ms, decompose_ms, solve_ms, residual);
+}
+
+static void write_accuracy_row(FILE* out, size_t n, const char* method, int status, const double* A, const double* b, const double* x, const double* exact) {
+    const double relative_error = status == ALGEBRA_OK ? matgen_relative_error(n, x, exact) : -1.0;
+    const double residual = status == ALGEBRA_OK ? gauss_residual(n, A, b, x) : -1.0;
+
+    fprintf(out, "%zu,%s,%d,%.12e,%.12e\n",
+            n, method, status, relative_error, residual);
+}
+
 static void write_single_system_experiment(FILE* out) {
     LOG_INFO("%s", "write_single_system_experiment: начало эксперимента для одной системы");
     const size_t sizes[] = {100, 200, 500, 1000};
-    const size_t count = sizeof(sizes) / sizeof(sizes[0]);
 
     fprintf(out, "n,method,status,total_ms,decompose_ms,solve_ms,residual\n");
 
-    for (size_t i = 0; i < count; i++) {
+    for (size_t i = 0; i < ARRAY_COUNT(sizes); i++) {
         const size_t n = sizes[i];
         LOG_INFO("write_single_system_experiment: обработка n=%zu", n);
         double* A = matgen_random(n, -1.0, 1.0, 1000u + (unsigned int)n);
@@ -72,20 +95,16 @@ static void write_single_system_experiment(FILE* out) {
 
         double elapsed = 0.0;
         int gs = gauss_solve(n, A, b, x, GAUSS_METHOD_CLASSIC, &elapsed);
-        fprintf(out, "%zu,gauss_classic,%d,%.6f,0,%.6f,%.12e\n",
-                n, gs, elapsed, elapsed, gs == ALGEBRA_OK ? gauss_residual(n, A, b, x) : -1.0);
+        write_timing_row(out, n, "gauss_classic", gs, elapsed, 0.0, elapsed, A, b, x);
 
         gs = gauss_solve(n, A, b, x, GAUSS_METHOD_PIVOT, &elapsed);
-        fprintf(out, "%zu,gauss_pivot,%d,%.6f,0,%.6f,%.12e\n",
-                n, gs, elapsed, elapsed, gs == ALGEBRA_OK ? gauss_residual(n, A, b, x) : -1.0);
+        write_timing_row(out, n, "gauss_pivot", gs, elapsed, 0.0, elapsed, A, b, x);
 
         double decompose_ms = 0.0;
         double solve_ms = 0.0;
         double total_ms = 0.0;
         int ls = lu_decompose_solve(n, A, b, x, &decompose_ms, &solve_ms, &total_ms);
-        fprintf(out, "%zu,lu,%d,%.6f,%.6f,%.6f,%.12e\n",
-                n, ls, total_ms, decompose_ms, solve_ms,
-                ls == ALGEBRA_OK ? gauss_residual(n, A, b, x) : -1.0);
+        write_timing_row(out, n, "lu", ls, total_ms, decompose_ms, solve_ms, A, b, x);
 
         gauss_free_matrix(A);
         free(b);
@@ -99,7 +118,6 @@ static void write_multiple_rhs_experiment(FILE* out) {
     LOG_INFO("%s", "write_multiple_rhs_experiment: начало эксперимента с несколькими правыми частями");
     const size_t n = 500;
     const size_t rhs_counts[] = {1, 10, 100};
-    const size_t count = sizeof(rhs_counts) / sizeof(rhs_counts[0]);
 
     fprintf(out, "n,k,method,status,total_ms,decompose_ms,solve_ms\n");
 
@@ -122,7 +140,7 @@ static void write_multiple_rhs_experiment(FILE* out) {
     double decompose_ms = 0.0;
     int lu_status = lu_decompose(n, A, L, U, &decompose_ms);
 
-    for (size_t i = 0; i < count; i++) {
+    for (size_t i = 0; i < ARRAY_COUNT(rhs_counts); i++) {
         const size_t k = rhs_counts[i];
         LOG_INFO("write_multiple_rhs_experiment: обработка k=%zu", k);
         double gauss_total_ms = 0.0;
@@ -172,11 +190,10 @@ static void write_multiple_rhs_experiment(FILE* out) {
 static void write_hilbert_experiment(FILE* out) {
     LOG_INFO("%s", "write_hilbert_experiment: начало эксперимента на матрицах Гильберта");
     const size_t sizes[] = {5, 10, 15};
-    const size_t count = sizeof(sizes) / sizeof(sizes[0]);
 
     fprintf(out, "n,method,status,relative_error,residual\n");
 
-    for (size_t i = 0; i < count; i++) {
+    for (size_t i = 0; i < ARRAY_COUNT(sizes); i++) {
         const size_t n = sizes[i];
         LOG_INFO("write_hilbert_experiment: обработка n=%zu", n);
         double* H = matgen_hilbert(n);
@@ -203,19 +220,13 @@ static void write_hilbert_experiment(FILE* out) {
         }
 
         int gs = gauss_solve(n, H, b, x, GAUSS_METHOD_CLASSIC, NULL);
-        fprintf(out, "%zu,gauss_classic,%d,%.12e,%.12e\n",
-                n, gs, gs == ALGEBRA_OK ? matgen_relative_error(n, x, exact) : -1.0,
-                gs == ALGEBRA_OK ? gauss_residual(n, H, b, x) : -1.0);
+        write_accuracy_row(out, n, "gauss_classic", gs, H, b, x, exact);
 
         gs = gauss_solve(n, H, b, x, GAUSS_METHOD_PIVOT, NULL);
-        fprintf(out, "%zu,gauss_pivot,%d,%.12e,%.12e\n",
-                n, gs, gs == ALGEBRA_OK ? matgen_relative_error(n, x, exact) : -1.0,
-                gs == ALGEBRA_OK ? gauss_residual(n, H, b, x) : -1.0);
+        write_accuracy_row(out, n, "gauss_pivot", gs, H, b, x, exact);
 
         int ls = lu_decompose_solve(n, H, b, x, NULL, NULL, NULL);
-        fprintf(out, "%zu,lu,%d,%.12e,%.12e\n",
-                n, ls, ls == ALGEBRA_OK ? matgen_relative_error(n, x, exact) : -1.0,
-                ls == ALGEBRA_OK ? gauss_residual(n, H, b, x) : -1.0);
+        write_accuracy_row(out, n, "lu", ls, H, b, x, exact);
 
         gauss_free_matrix(H);
         free(exact);
@@ -240,9 +251,9 @@ int main(void) {
 
     if (!single || !multi || !hilbert) {
         LOG_ERROR("%s", "Не удалось открыть файлы отчётов в data/reports!");
-        if (single) fclose(single);
-        if (multi) fclose(multi);
-        if (hilbert) fclose(hilbert);
+        close_file(&single);
+        close_file(&multi);
+        close_file(&hilbert);
         return 1;
     }
 
@@ -250,9 +261,9 @@ int main(void) {
     write_multiple_rhs_experiment(multi);
     write_hilbert_experiment(hilbert);
 
-    fclose(single);
-    fclose(multi);
-    fclose(hilbert);
+    close_file(&single);
+    close_file(&multi);
+    close_file(&hilbert);
 
     LOG_INFO("%s", "main: все отчёты успешно записаны");
     printf("Эксперименты завершены. CSV-файлы сохранены в data/reports.\n");

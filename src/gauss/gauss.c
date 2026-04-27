@@ -189,8 +189,7 @@ static int back_substitution(size_t n, const double* A, const double* b, double*
     return ALGEBRA_OK;
 }
 
-int gauss_solve(size_t n, const double* A, const double* b, double* x,
-                int method, double* elapsed_ms) {
+int gauss_solve(size_t n, const double* A, const double* b, double* x, int method, double* elapsed_ms) {
     Timer timer;
     double* work_A;
     double* work_b;
@@ -235,8 +234,7 @@ int gauss_solve(size_t n, const double* A, const double* b, double* x,
     return status;
 }
 
-int gauss_forward_substitution(size_t n, const double* L, const double* b,
-                               double* y, double* elapsed_ms) {
+int gauss_forward_substitution(size_t n, const double* L, const double* b, double* y, double* elapsed_ms) {
     Timer timer;
 
     if (!check_system(n, L, b, y)) {
@@ -271,8 +269,7 @@ int gauss_forward_substitution(size_t n, const double* L, const double* b,
     return ALGEBRA_OK;
 }
 
-int gauss_back_substitution(size_t n, const double* U, const double* y,
-                            double* x, double* elapsed_ms) {
+int gauss_back_substitution(size_t n, const double* U, const double* y, double* x, double* elapsed_ms) {
     Timer timer;
     int status;
 
