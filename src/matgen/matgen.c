@@ -100,8 +100,7 @@ double* matgen_rhs_from_exact(size_t n, const double* A, const double* x_exact) 
     return b;
 }
 
-double matgen_relative_error(size_t n, const double* x_approx,
-                             const double* x_exact) {
+double matgen_relative_error(size_t n, const double* x_approx, const double* x_exact) {
     double diff_norm = 0.0;
     double exact_norm = 0.0;
 
