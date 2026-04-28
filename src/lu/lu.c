@@ -1,5 +1,7 @@
 #include "lu.h"
+#include "../gauss/gauss.h"
 #include "../logging/logger.h"
+#include "../timer/timer.h"
 
 #include <math.h>
 #include <stdlib.h>
@@ -18,12 +20,11 @@ static int check_lu_args(size_t n, const double* A, const char* name) {
     return 1;
 }
 
-int lu_decompose(size_t n, const double* A, double* L, double* U,
-                 double* elapsed_ms) {
+int lu_decompose(size_t n, const double* A, double* L, double* U, double* elapsed_ms) {
     Timer timer;
 
     if (!check_lu_args(n, A, "lu_decompose") || L == NULL || U == NULL) {
-        return ALGEBRA_ALLOC_ERR;
+        return LU_ERROR;
     }
 
     if (elapsed_ms != NULL) {
@@ -50,12 +51,12 @@ int lu_decompose(size_t n, const double* A, double* L, double* U,
             U[i * n + k] = A[i * n + k] - sum;
         }
 
-        if (fabs(U[i * n + i]) < GAUSS_EPS) {
+        if (fabs(U[i * n + i]) < LU_EPS) {
             if (elapsed_ms != NULL) {
                 timer_stop(&timer);
                 *elapsed_ms = timer_elapsed_ms(&timer);
             }
-            return ALGEBRA_SINGULAR;
+            return LU_ERROR;
         }
 
         for (size_t k = i + 1; k < n; k++) {
@@ -74,18 +75,17 @@ int lu_decompose(size_t n, const double* A, double* L, double* U,
         *elapsed_ms = timer_elapsed_ms(&timer);
     }
 
-    return ALGEBRA_OK;
+    return LU_OK;
 }
 
-int lu_solve(size_t n, const double* L, const double* U, const double* b,
-             double* x, double* elapsed_ms) {
+int lu_solve(size_t n, const double* L, const double* U, const double* b, double* x, double* elapsed_ms) {
     Timer timer;
     double* y;
     int status;
 
     if (n == 0 || L == NULL || U == NULL || b == NULL || x == NULL) {
         LOG_ERROR("%s", "Некорректные параметры lu_solve!");
-        return ALGEBRA_ALLOC_ERR;
+        return LU_ERROR;
     }
 
     if (elapsed_ms != NULL) {
@@ -94,11 +94,11 @@ int lu_solve(size_t n, const double* L, const double* U, const double* b,
 
     y = malloc(n * sizeof(double));
     if (y == NULL) {
-        return ALGEBRA_ALLOC_ERR;
+        return LU_ERROR;
     }
 
     status = gauss_forward_substitution(n, L, b, y, NULL);
-    if (status == ALGEBRA_OK) {
+    if (status == GAUSS_OK) {
         status = gauss_back_substitution(n, U, y, x, NULL);
     }
 
@@ -111,8 +111,7 @@ int lu_solve(size_t n, const double* L, const double* U, const double* b,
     return status;
 }
 
-int lu_decompose_solve(size_t n, const double* A, const double* b, double* x,
-                       double* decompose_ms, double* solve_ms, double* total_ms) {
+int lu_decompose_solve(size_t n, const double* A, const double* b, double* x, double* decompose_ms, double* solve_ms, double* total_ms) {
     Timer timer;
     double* L;
     double* U;
@@ -120,7 +119,7 @@ int lu_decompose_solve(size_t n, const double* A, const double* b, double* x,
 
     if (n == 0 || A == NULL || b == NULL || x == NULL) {
         LOG_ERROR("%s", "Некорректные параметры lu_decompose_solve!");
-        return ALGEBRA_ALLOC_ERR;
+        return LU_ERROR;
     }
 
     if (total_ms != NULL) {
@@ -132,11 +131,11 @@ int lu_decompose_solve(size_t n, const double* A, const double* b, double* x,
     if (L == NULL || U == NULL) {
         gauss_free_matrix(L);
         gauss_free_matrix(U);
-        return ALGEBRA_ALLOC_ERR;
+        return LU_ERROR;
     }
 
     status = lu_decompose(n, A, L, U, decompose_ms);
-    if (status == ALGEBRA_OK) {
+    if (status == LU_OK) {
         status = lu_solve(n, L, U, b, x, solve_ms);
     }
 
