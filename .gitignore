@@ -1,0 +1,94 @@
+# OS and editor noise
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+
+# IDEs
+.idea/
+.vscode/
+.vs/
+*.sublime-workspace
+*.sublime-project
+
+# CMake and build directories
+build/
+build-*/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+compile_commands.json
+install_manifest.txt
+*.cmake.tmp*
+*.ninja
+*.ninja_*
+
+# C/C++ build artifacts
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+*.app
+*.ilk
+*.pdb
+*.idb
+*.exp
+
+# Generated reports and run outputs
+reports/
+*.log
+logs/
+*.tmp
+*.temp
+*.bak
+
+# Coverage and profiling
+coverage/
+*.gcda
+*.gcno
+*.gcov
+*.profraw
+*.profdata
+
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+
+# Node/package-manager caches
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-store/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# Archives and large generated bundles
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
