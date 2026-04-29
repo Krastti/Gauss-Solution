@@ -12,6 +12,10 @@ static const char* LEVEL_NAMES[] = {
     "ERROR"
 };
 
+LogLevel logger_current_level(void) {
+  return current_level;
+}
+
 void logger_set_level(LogLevel level) {
     if (level < LOG_DEBUG || level > LOG_ERROR) {
         printf("[LOGGER] Некорректный уровень логирования: %d\n", level);

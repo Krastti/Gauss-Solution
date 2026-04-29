@@ -19,6 +19,7 @@ int main(void) {
         printf("2. Решить методом Гаусса с частичным выбором главного элемента\n");
         printf("3. Решить через LU-разложение\n");
         printf("4. Запустить эксперименты и сохранить CSV\n");
+        printf("5. Изменить уровень логирования\n");
         printf("0. Выход\n");
         printf("Ваш выбор: ");
 
@@ -34,6 +35,31 @@ int main(void) {
                 printf("Эксперименты завершены. CSV-файлы сохранены в data/reports.\n\n");
             } else {
                 printf("Не удалось записать CSV-файлы.\n\n");
+            }
+        } else if (choice == 5) {
+            int level_choice = -1;
+            printf("Уровни логирования:\n");
+            printf("0. Debug\n");
+            printf("1. Info\n");
+            printf("2. Warning\n");
+            printf("3. Error\n");
+            printf("Установить уровень: ");
+
+            if (scanf("%d", &level_choice) != 1) {
+              printf("Ошибка ввода.\n");
+              return 1;
+            }
+
+            if (level_choice == logger_current_level()) {
+              printf("Выбранный уровень уже установлен!\n");
+            } else if (level_choice == 1) {
+              logger_set_level(level_choice);
+            } else if (level_choice == 2) {
+              logger_set_level(level_choice);
+            } else if (level_choice == 3) {
+              logger_set_level(level_choice);
+            } else if (level_choice == 4) {
+              logger_set_level(level_choice);
             }
         } else if (choice >= 1 && choice <= 3) {
             size_t n;
@@ -99,7 +125,6 @@ int main(void) {
             } else {
                 printf("Матрица вырождена или близка к вырожденной.\n");
             }
-
             printf("\n");
 
             gauss_free_matrix(A);
