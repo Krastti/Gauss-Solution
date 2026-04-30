@@ -1,10 +1,40 @@
 #include "gauss.h"
 #include "../logging/logger.h"
+#include "../timer/timer.h"
 
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+static double vector_at(const double* v, size_t n, size_t i) {
+    if (v == NULL || n == 0 || i >= n) {
+        LOG_ERROR("%s", "Некорректные параметры доступа к вектору!");
+        return 0.0;
+    }
+
+    return v[i];
+}
+
+static double* vector_at_ptr(double* v, size_t n, size_t i) {
+    if (v == NULL || n == 0 || i >= n) {
+        LOG_ERROR("%s", "Некорректные параметры доступа к вектору!");
+        return NULL;
+    }
+
+    return &v[i];
+}
+
+static int vector_set(double* v, size_t n, size_t i, double value) {
+    double* element = vector_at_ptr(v, n, i);
+
+    if (element == NULL) {
+        return GAUSS_ERROR;
+    }
+
+    *element = value;
+    return GAUSS_OK;
+}
 
 double gauss_at(const double* A, size_t n, size_t i, size_t j) {
     if (A == NULL || n == 0) {
@@ -24,6 +54,17 @@ double* gauss_at_ptr(double* A, size_t n, size_t i, size_t j) {
     return &A[i * n + j];
 }
 
+static int gauss_set(double* A, size_t n, size_t i, size_t j, double value) {
+    double* element = gauss_at_ptr(A, n, i, j);
+
+    if (element == NULL) {
+        return GAUSS_ERROR;
+    }
+
+    *element = value;
+    return GAUSS_OK;
+}
+
 double* gauss_alloc_matrix(size_t n) {
     if (n == 0) {
         LOG_ERROR("%s", "Размер матрицы должен быть больше нуля!");
@@ -37,40 +78,15 @@ void gauss_free_matrix(double* A) {
     free(A);
 }
 
-void gauss_print_matrix(size_t n, const double* A, const char* label) {
-    if (A == NULL) {
-        LOG_ERROR("%s", "Попытка печати несуществующей матрицы!");
-        return;
-    }
-
-    if (label == NULL) {
-        label = "Матрица";
-    }
-
-    printf("%s %zux%zu:\n", label, n, n);
-    for (size_t i = 0; i < n; i++) {
-        printf("| ");
-        for (size_t j = 0; j < n; j++) {
-            printf("%10.4f ", A[i * n + j]);
-        }
-        printf("|\n");
-    }
-    printf("\n");
-}
-
 void gauss_print_vector(size_t n, const double* v, const char* label) {
     if (v == NULL) {
         LOG_ERROR("%s", "Попытка печати несуществующего вектора!");
         return;
     }
-
-    if (label == NULL) {
-        label = "Вектор";
-    }
-
+    
     printf("%s:\n| ", label);
     for (size_t i = 0; i < n; i++) {
-        printf("%10.4f ", v[i]);
+        printf("%10.4f ", vector_at(v, n, i));
     }
     printf("|\n\n");
 }
@@ -89,18 +105,24 @@ static int check_system(size_t n, const double* A, const double* b, const double
     return 1;
 }
 
-static void swap_rows(double* A, double* b, size_t n, size_t row1, size_t row2) {
+static int swap_rows(double* A, double* b, size_t n, size_t row1, size_t row2) {
     double temp;
 
     for (size_t j = 0; j < n; j++) {
-        temp = A[row1 * n + j];
-        A[row1 * n + j] = A[row2 * n + j];
-        A[row2 * n + j] = temp;
+        temp = gauss_at(A, n, row1, j);
+        if (gauss_set(A, n, row1, j, gauss_at(A, n, row2, j)) != GAUSS_OK ||
+            gauss_set(A, n, row2, j, temp) != GAUSS_OK) {
+            return GAUSS_ERROR;
+        }
     }
 
-    temp = b[row1];
-    b[row1] = b[row2];
-    b[row2] = temp;
+    temp = vector_at(b, n, row1);
+    if (vector_set(b, n, row1, vector_at(b, n, row2)) != GAUSS_OK ||
+        vector_set(b, n, row2, temp) != GAUSS_OK) {
+        return GAUSS_ERROR;
+    }
+
+    return GAUSS_OK;
 }
 
 static int forward_classic(size_t n, double* A, double* b) {
@@ -108,24 +130,30 @@ static int forward_classic(size_t n, double* A, double* b) {
     double factor;
 
     for (size_t col = 0; col < n; col++) {
-        pivot = A[col * n + col];
+        pivot = gauss_at(A, n, col, col);
         if (fabs(pivot) < GAUSS_EPS) {
             LOG_ERROR("Нулевой диагональный элемент на шаге %zu", col);
-            return ALGEBRA_SINGULAR;
+            return GAUSS_ERROR;
         }
 
         for (size_t row = col + 1; row < n; row++) {
-            factor = A[row * n + col] / pivot;
-            b[row] = b[row] - factor * b[col];
+            factor = gauss_at(A, n, row, col) / pivot;
+            if (vector_set(b, n, row, vector_at(b, n, row) - factor * vector_at(b, n, col)) != GAUSS_OK) {
+                return GAUSS_ERROR;
+            }
 
             for (size_t j = col; j < n; j++) {
-                A[row * n + j] = A[row * n + j] - factor * A[col * n + j];
+                if (gauss_set(A, n, row, j, gauss_at(A, n, row, j) - factor * gauss_at(A, n, col, j)) != GAUSS_OK) {
+                    return GAUSS_ERROR;
+                }
             }
-            A[row * n + col] = 0.0;
+            if (gauss_set(A, n, row, col, 0.0) != GAUSS_OK) {
+                return GAUSS_ERROR;
+            }
         }
     }
 
-    return ALGEBRA_OK;
+    return GAUSS_OK;
 }
 
 static int forward_pivot(size_t n, double* A, double* b) {
@@ -134,10 +162,10 @@ static int forward_pivot(size_t n, double* A, double* b) {
 
     for (size_t col = 0; col < n; col++) {
         size_t pivot_row = col;
-        double max_value = fabs(A[col * n + col]);
+        double max_value = fabs(gauss_at(A, n, col, col));
 
         for (size_t row = col + 1; row < n; row++) {
-            double value = fabs(A[row * n + col]);
+            double value = fabs(gauss_at(A, n, row, col));
             if (value > max_value) {
                 max_value = value;
                 pivot_row = row;
@@ -146,26 +174,34 @@ static int forward_pivot(size_t n, double* A, double* b) {
 
         if (max_value < GAUSS_EPS) {
             LOG_ERROR("Ведущий элемент на шаге %zu слишком мал", col);
-            return ALGEBRA_SINGULAR;
+            return GAUSS_ERROR;
         }
 
         if (pivot_row != col) {
-            swap_rows(A, b, n, col, pivot_row);
+            if (swap_rows(A, b, n, col, pivot_row) != GAUSS_OK) {
+                return GAUSS_ERROR;
+            }
         }
 
-        pivot = A[col * n + col];
+        pivot = gauss_at(A, n, col, col);
         for (size_t row = col + 1; row < n; row++) {
-            factor = A[row * n + col] / pivot;
-            b[row] = b[row] - factor * b[col];
+            factor = gauss_at(A, n, row, col) / pivot;
+            if (vector_set(b, n, row, vector_at(b, n, row) - factor * vector_at(b, n, col)) != GAUSS_OK) {
+                return GAUSS_ERROR;
+            }
 
             for (size_t j = col; j < n; j++) {
-                A[row * n + j] = A[row * n + j] - factor * A[col * n + j];
+                if (gauss_set(A, n, row, j, gauss_at(A, n, row, j) - factor * gauss_at(A, n, col, j)) != GAUSS_OK) {
+                    return GAUSS_ERROR;
+                }
             }
-            A[row * n + col] = 0.0;
+            if (gauss_set(A, n, row, col, 0.0) != GAUSS_OK) {
+                return GAUSS_ERROR;
+            }
         }
     }
 
-    return ALGEBRA_OK;
+    return GAUSS_OK;
 }
 
 static int back_substitution(size_t n, const double* A, const double* b, double* x) {
@@ -174,19 +210,25 @@ static int back_substitution(size_t n, const double* A, const double* b, double*
     while (i > 0) {
         i--;
 
-        if (fabs(A[i * n + i]) < GAUSS_EPS) {
+        if (fabs(gauss_at(A, n, i, i)) < GAUSS_EPS) {
             LOG_ERROR("Нулевой диагональный элемент при обратной подстановке: строка %zu", i);
-            return ALGEBRA_SINGULAR;
+            return GAUSS_ERROR;
         }
 
-        x[i] = b[i];
-        for (size_t j = i + 1; j < n; j++) {
-            x[i] = x[i] - A[i * n + j] * x[j];
+        if (vector_set(x, n, i, vector_at(b, n, i)) != GAUSS_OK) {
+            return GAUSS_ERROR;
         }
-        x[i] = x[i] / A[i * n + i];
+        for (size_t j = i + 1; j < n; j++) {
+            if (vector_set(x, n, i, vector_at(x, n, i) - gauss_at(A, n, i, j) * vector_at(x, n, j)) != GAUSS_OK) {
+                return GAUSS_ERROR;
+            }
+        }
+        if (vector_set(x, n, i, vector_at(x, n, i) / gauss_at(A, n, i, i)) != GAUSS_OK) {
+            return GAUSS_ERROR;
+        }
     }
 
-    return ALGEBRA_OK;
+    return GAUSS_OK;
 }
 
 int gauss_solve(size_t n, const double* A, const double* b, double* x, int method, double* elapsed_ms) {
@@ -196,7 +238,7 @@ int gauss_solve(size_t n, const double* A, const double* b, double* x, int metho
     int status;
 
     if (!check_system(n, A, b, x)) {
-        return ALGEBRA_ALLOC_ERR;
+        return GAUSS_ERROR;
     }
 
     if (elapsed_ms != NULL) {
@@ -208,7 +250,7 @@ int gauss_solve(size_t n, const double* A, const double* b, double* x, int metho
     if (work_A == NULL || work_b == NULL) {
         free(work_A);
         free(work_b);
-        return ALGEBRA_ALLOC_ERR;
+        return GAUSS_ERROR;
     }
 
     memcpy(work_A, A, n * n * sizeof(double));
@@ -220,7 +262,7 @@ int gauss_solve(size_t n, const double* A, const double* b, double* x, int metho
         status = forward_pivot(n, work_A, work_b);
     }
 
-    if (status == ALGEBRA_OK) {
+    if (status == GAUSS_OK) {
         status = back_substitution(n, work_A, work_b, x);
     }
 
@@ -238,7 +280,7 @@ int gauss_forward_substitution(size_t n, const double* L, const double* b, doubl
     Timer timer;
 
     if (!check_system(n, L, b, y)) {
-        return ALGEBRA_ALLOC_ERR;
+        return GAUSS_ERROR;
     }
 
     if (elapsed_ms != NULL) {
@@ -246,19 +288,25 @@ int gauss_forward_substitution(size_t n, const double* L, const double* b, doubl
     }
 
     for (size_t i = 0; i < n; i++) {
-        if (fabs(L[i * n + i]) < GAUSS_EPS) {
+        if (fabs(gauss_at(L, n, i, i)) < GAUSS_EPS) {
             if (elapsed_ms != NULL) {
                 timer_stop(&timer);
                 *elapsed_ms = timer_elapsed_ms(&timer);
             }
-            return ALGEBRA_SINGULAR;
+            return GAUSS_ERROR;
         }
 
-        y[i] = b[i];
-        for (size_t j = 0; j < i; j++) {
-            y[i] = y[i] - L[i * n + j] * y[j];
+        if (vector_set(y, n, i, vector_at(b, n, i)) != GAUSS_OK) {
+            return GAUSS_ERROR;
         }
-        y[i] = y[i] / L[i * n + i];
+        for (size_t j = 0; j < i; j++) {
+            if (vector_set(y, n, i, vector_at(y, n, i) - gauss_at(L, n, i, j) * vector_at(y, n, j)) != GAUSS_OK) {
+                return GAUSS_ERROR;
+            }
+        }
+        if (vector_set(y, n, i, vector_at(y, n, i) / gauss_at(L, n, i, i)) != GAUSS_OK) {
+            return GAUSS_ERROR;
+        }
     }
 
     if (elapsed_ms != NULL) {
@@ -266,7 +314,7 @@ int gauss_forward_substitution(size_t n, const double* L, const double* b, doubl
         *elapsed_ms = timer_elapsed_ms(&timer);
     }
 
-    return ALGEBRA_OK;
+    return GAUSS_OK;
 }
 
 int gauss_back_substitution(size_t n, const double* U, const double* y, double* x, double* elapsed_ms) {
@@ -274,7 +322,7 @@ int gauss_back_substitution(size_t n, const double* U, const double* y, double* 
     int status;
 
     if (!check_system(n, U, y, x)) {
-        return ALGEBRA_ALLOC_ERR;
+        return GAUSS_ERROR;
     }
 
     if (elapsed_ms != NULL) {
@@ -302,10 +350,10 @@ double gauss_residual(size_t n, const double* A, const double* b, const double* 
         double ax = 0.0;
 
         for (size_t j = 0; j < n; j++) {
-            ax = ax + A[i * n + j] * x[j];
+            ax = ax + gauss_at(A, n, i, j) * vector_at(x, n, j);
         }
 
-        sum = sum + (ax - b[i]) * (ax - b[i]);
+        sum = sum + (ax - vector_at(b, n, i)) * (ax - vector_at(b, n, i));
     }
 
     return sqrt(sum);
