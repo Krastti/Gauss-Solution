@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <windows.h>
 
+#define MAX_MATRIX_SIZE 10
+
 int main(void) {
     SetConsoleOutputCP(CP_UTF8);
     logger_set_level(LOG_ERROR);
@@ -65,8 +67,8 @@ int main(void) {
             size_t n;
 
             printf("Введите размер системы n: ");
-            if (scanf("%zu", &n) != 1 || n == 0) {
-                printf("Некорректный размер системы.\n");
+            if (scanf("%zu", &n) != 1 || n == 0 || n > MAX_MATRIX_SIZE) {
+                printf("Некорректный размер системы. Размер должен быть от 1 до %d.\n", MAX_MATRIX_SIZE);
                 return 1;
             }
 
