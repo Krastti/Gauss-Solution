@@ -5,9 +5,17 @@
 #include "../lu/lu.h"
 #include "../matgen/matgen.h"
 
-#include <direct.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+#ifdef _WIN32
+#include <direct.h>
+#else
+#include <sys/stat.h>
+#include <sys/types.h>
+#endif
 
 #ifndef DATA_DIR
 #define DATA_DIR "data"
@@ -47,10 +55,27 @@ static void ensure_report_file(const char* path) {
     fclose(file);
 }
 
+static int create_directory_if_missing(const char* path) {
+    int result;
+
+#ifdef _WIN32
+    result = _mkdir(path);
+#else
+    result = mkdir(path, 0777);
+#endif
+
+    if (result == 0 || errno == EEXIST) {
+        return 0;
+    }
+
+    LOG_ERROR("create_directory_if_missing: не удалось создать папку %s: %s", path, strerror(errno));
+    return 1;
+}
+
 static void ensure_report_directories(void) {
     LOG_INFO("ensure_report_directories: подготовка папок %s и %s", DATA_DIR, REPORTS_DIR);
-    _mkdir(DATA_DIR);
-    _mkdir(REPORTS_DIR);
+    create_directory_if_missing(DATA_DIR);
+    create_directory_if_missing(REPORTS_DIR);
 
     ensure_report_file(REPORT_SINGLE_PATH);
     ensure_report_file(REPORT_MULTI_PATH);

@@ -5,12 +5,17 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+
+#ifdef _WIN32
 #include <windows.h>
+#endif
 
 #define MAX_MATRIX_SIZE 10
 
 int main(void) {
+#ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
+#endif
     logger_set_level(LOG_ERROR);
 
     int choice = -1;
