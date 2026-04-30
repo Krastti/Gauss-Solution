@@ -86,7 +86,7 @@ void gauss_print_vector(size_t n, const double* v, const char* label) {
     
     printf("%s:\n| ", label);
     for (size_t i = 0; i < n; i++) {
-        printf("%10.4f ", vector_at(v, n, i));
+        printf("%5.2f ", vector_at(v, n, i));
     }
     printf("|\n\n");
 }
